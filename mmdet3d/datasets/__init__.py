@@ -1,4 +1,10 @@
-from .vod_dataset import VoDDataset
+try:
+    from .vod_dataset import VoDDataset
+    _VOD_DATASET_NAMES = ['VoDDataset']
+except ModuleNotFoundError as exc:
+    if exc.name != 'vod' and not (exc.name or '').startswith('vod.'):
+        raise
+    _VOD_DATASET_NAMES = []
 from .TJ4D_dataset import TJ4DDataset
 from .kitti_dataset import KittiDataset
 from .custom_3d import Custom3DDataset
@@ -9,8 +15,8 @@ from .pipelines import (LoadPointsFromFile, LoadImageFromFile, Collect3D,
                         DefaultFormatBundle3D, LoadAnnotations3D)
 
 __all__ = [
-    'VoDDataset', 'TJ4DDataset', 'KittiDataset', 'Custom3DDataset',
+    'TJ4DDataset', 'KittiDataset', 'Custom3DDataset',
     'build_dataloader', 'DATASETS', 'build_dataset', 'PIPELINES',
     'LoadPointsFromFile', 'LoadImageFromFile', 'Collect3D',
     'DefaultFormatBundle3D', 'LoadAnnotations3D'
-]
+] + _VOD_DATASET_NAMES

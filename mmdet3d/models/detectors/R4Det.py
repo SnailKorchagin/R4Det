@@ -288,7 +288,7 @@ class R4Det(MVXFasterRCNN):
         if self.freeze_radars: self.freeze_pts_model()
         self.record_fps = {'num': 0, 'time': 0}
         self.init_visulization()
-        self.igdr_fusion = IGDRModule(
+        self.ifgd_fusion = IGDRModule(
             bev_channels=self.img_channels,
             instance_channels=self.img_channels
         )
@@ -759,7 +759,9 @@ class R4Det(MVXFasterRCNN):
         for i in range(B):
             # preparation
             pts = points[i][:, :3]
-            pts_hom = torch.cat((pts, torch.ones((pts.shape[0], 1), device=device)), dim=1)  # (N, 4)
+            pts_hom = torch.cat(
+                (pts, torch.ones((pts.shape[0], 1), device=device, dtype=pts.dtype)), dim=1
+            )  # (N, 4)
             img_pts = torch.matmul(lidar2img[i], pts_hom.t()).t()  # (N, 4)
             img_pts[:, :2] = img_pts[:, :2] / img_pts[:, 2:3]
             depth_values = img_pts[:, 2]
@@ -822,7 +824,16 @@ class R4Det(MVXFasterRCNN):
             # Assign the computed features to the correct positions
             indices = torch.nonzero(valid_mask).squeeze(1).to(device)
             add_feature = torch.cat(
-                (torch.zeros((indices.size(0), self.pts_dim), device=device), valid_context_features), dim=1)
+                (
+                    torch.zeros(
+                        (indices.size(0), self.pts_dim),
+                        device=device,
+                        dtype=context_features.dtype,
+                    ),
+                    valid_context_features.to(context_features.dtype),
+                ),
+                dim=1,
+            )
             context_features.index_add_(0, indices, add_feature)
             painted_points.append(context_features)
 
@@ -957,7 +968,7 @@ class R4Det(MVXFasterRCNN):
             sampling_results_test = [DummySamplingResult(0) for _ in range(len(img_metas))]
 
         pts_feats_refined_list = pts_feats
-        if instance_features_test is not None and instance_features_test.shape[0] > 0 and self.igdr_fusion:
+        if instance_features_test is not None and instance_features_test.shape[0] > 0 and self.ifgd_fusion:
             S_BEV = self._build_bev_instance_map(
                 img_metas=img_metas,
                 precise_depth=precise_depth,
@@ -969,7 +980,7 @@ class R4Det(MVXFasterRCNN):
             )
             RC_BEV = pts_feats_refined_list[0]  # (B, C_bev, W, H)
             E_features = instance_features_test
-            fused_bev_feat = self.igdr_fusion(RC_BEV, E_features, S_BEV)
+            fused_bev_feat = self.ifgd_fusion(RC_BEV, E_features, S_BEV)
             pts_feats = [fused_bev_feat]
 
 
@@ -1181,7 +1192,7 @@ class R4Det(MVXFasterRCNN):
                     sampling_results_for_fusion = [DummySamplingResult(n) for n in num_rois_per_img]
 
         pts_feats_refined_list = pts_feats
-        if instance_features_for_fusion is not None and instance_features_for_fusion.shape[0] > 0 and self.igdr_fusion and indexed_pred_masks_for_fusion is not None:
+        if instance_features_for_fusion is not None and instance_features_for_fusion.shape[0] > 0 and self.ifgd_fusion and indexed_pred_masks_for_fusion is not None:
             precise_depth = feature_dict['precise_depth']
 
             S_BEV = self._build_bev_instance_map(
@@ -1196,7 +1207,7 @@ class R4Det(MVXFasterRCNN):
 
             RC_BEV = pts_feats_refined_list[0]  # (B, C_bev, W, H)
             E_features = instance_features_for_fusion
-            fused_bev_feat = self.igdr_fusion(RC_BEV, E_features, S_BEV)
+            fused_bev_feat = self.ifgd_fusion(RC_BEV, E_features, S_BEV)
             pts_feats = [fused_bev_feat]
         outs_pts = None
         if self.use_box3d_supervision and gt_bboxes_3d is not None:

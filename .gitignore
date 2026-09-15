@@ -5,7 +5,17 @@ __pycache__/
 # env
 venv/
 env/
+.venv/
+.micromamba/
+.tools/
+.downloads/
+.cache/
 *.conda
+
+# native build products
+build/
+*.egg-info/
+*.so
 
 # logs
 logs/
@@ -14,6 +24,10 @@ logs/
 # checkpoints
 *.pth
 *.ckpt
+
+# local smoke-test output
+.smoke/
+work_dirs/
 
 # datasets
 data/

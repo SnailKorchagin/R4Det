@@ -31,8 +31,6 @@ class CreateDepthFromRaDAR:
         # Apply the lidar to image transformation
         pts_hom = np.concatenate((radar_point, np.ones((radar_point.shape[0], 1))), axis=1)  # Convert to homogeneous coordinates
         img_pts = np.matmul(lidar2img, pts_hom.T).T  # Apply transformation
-        np.save('lidar2img.npy', lidar2img)
-        np.save('pts_hom.npy', pts_hom)
         depth = img_pts[:, 2]
 
         img_pts[:, :2] = img_pts[:, :2] / img_pts[:, 2:3]  # Convert back to Cartesian coordinates

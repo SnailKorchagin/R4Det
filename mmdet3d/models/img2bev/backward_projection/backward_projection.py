@@ -112,18 +112,26 @@ class BackwardProjection(BaseModule):
         seed_feats_list = seed_feats_list[0]
         pad_bev_feats_list = []
         for i in range(bs):
-            bev_feats = torch.empty((self.bev_h, self.bev_w, self.embed_dims), device=bev_queries.device)
+            bev_feats = torch.empty(
+                (self.bev_h, self.bev_w, self.embed_dims),
+                device=bev_queries.device,
+                dtype=dtype,
+            )
             bev_feats_flatten = bev_feats.reshape(-1, self.embed_dims)
             # bev_feats_flatten = lss_bev_flatten[:,i:i+1,:].reshape(-1, self.embed_dims)
             unmasked_idx = unmasked_idx_list[i]
             masked_idx = masked_idx_list[i]
             if bev_coords.device != bev_feats_flatten.device:
                 bev_coords = bev_coords.to(bev_feats_flatten.device)
-            bev_feats_flatten[bev_coords[unmasked_idx, -1], :] = seed_feats_list[i]
+            bev_feats_flatten[bev_coords[unmasked_idx, -1], :] = seed_feats_list[i].to(
+                bev_feats_flatten.dtype
+            )
             if self.mlp_prior is None:
                 bev_feats_flatten[bev_coords[masked_idx, -1], :] = self.mask_embed.weight.view(1, self.embed_dims).expand(masked_idx.shape[0], self.embed_dims).to(dtype)
             else:
-                bev_feats_flatten[bev_coords[masked_idx, -1], :] = self.mlp_prior(lss_bev_flatten[masked_idx, i, :])
+                bev_feats_flatten[bev_coords[masked_idx, -1], :] = self.mlp_prior(
+                    lss_bev_flatten[masked_idx, i, :]
+                ).to(bev_feats_flatten.dtype)
             pad_bev_feats = bev_feats_flatten.unsqueeze(1).to(dtype) + bev_feats_identity[:, i, :].unsqueeze(1)
             pad_bev_feats_list.append(pad_bev_feats)
 
@@ -146,4 +154,3 @@ class BackwardProjection(BaseModule):
             cam_params=cam_params)
         #exit(0)
         return final_bev_feats
-

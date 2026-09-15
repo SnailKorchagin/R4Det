@@ -32,7 +32,18 @@ from .transforms_3d import (AffineResize, BackgroundPointsFilter,
                             RangeLimitedRandomCrop, VoxelBasedPointSampler,
                             PhotoMetricDistortionMultiViewImage,
                             NormalizeMultiviewImage, CustomCollect3D)
-from .av2_pipeline import *
+try:
+    from .av2_pipeline import *
+    _AV2_PIPELINE_NAMES = [
+        'AV2PadMultiViewImage', 'AV2LoadMultiViewImageFromFiles',
+        'AV2DownsampleQuantizeDepthmap',
+        'AV2DownsampleQuantizeInstanceDepthmap',
+        'AV2ResizeCropFlipRotImageV2',
+    ]
+except ModuleNotFoundError as exc:
+    if exc.name != 'refile':
+        raise
+    _AV2_PIPELINE_NAMES = []
 
 from .loading_hop import (hop_LoadMultiViewImageFromFiles,
                           hop_LoadImageFromFileMono3D,
@@ -66,9 +77,7 @@ __all__ = [
     'LoadOccGTFromFile','PhotoMetricDistortionMultiViewImage','NormalizeMultiviewImage','PadMultiViewImage',
     'LoadAnnotationsBEVDepthLidarPre', 'LoadAnnotationsBEVDepthLidarPost', 'LoadAnnotations3DDebug', 'LoadAnnotationsBEVDepthReverse',
     'LoadMultiViewImageFromMultiSweeps', 'LoadMultiViewImageFromMultiSweepsFuture',
-    'PETRFormatBundle3D', 'AV2PadMultiViewImage', 'AV2LoadMultiViewImageFromFiles',
-    'AV2DownsampleQuantizeDepthmap', 'AV2DownsampleQuantizeInstanceDepthmap',
-    'AV2ResizeCropFlipRotImageV2',
+    'PETRFormatBundle3D',
     'ScaleImageMultiViewImage', 'MyPad', 'MyNormalize', 'MyResize', 'MyFlip3D',
     'LoadMultiViewImageFromFilesWaymo',
     'hop_LoadMultiViewImageFromFiles',
@@ -91,4 +100,4 @@ __all__ = [
     'LoadAnnotationsBEVDepth_Changan',
     'LoadPointsFromFile_Changan',
     'CustomCollect3D2', 'LoadMyDepthFromFile','LoadMyDepthFromFilevod','DownsampleDepthMap','BoxesFromSegMask','GenerateBevFromBoxes','LoadVLSAMAnnotations','LoadVLSAMAnnotationsvod'
-]
+] + _AV2_PIPELINE_NAMES

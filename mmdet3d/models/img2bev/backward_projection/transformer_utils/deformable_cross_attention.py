@@ -403,12 +403,19 @@ class MSDeformableAttention3D_DFA3D(MSDeformableAttention3D):
         '''
         if torch.cuda.is_available() and value.is_cuda:
             if value.dtype == torch.float16:
-                MultiScaleDeformableAttnFunction = MultiScale3DDeformableAttnFunction_fp16
+                # The bundled ms_depth_score CUDA kernel has no Half dispatch.
+                # Keep this custom operation in FP32, then return to the model's
+                # mixed-precision dtype. The casts remain differentiable.
+                output, depth_score = MultiScale3DDeformableAttnFunction_fp32.apply(
+                    value.float(), value_dpt_dist.float(), spatial_shapes_3D,
+                    level_start_index, sampling_locations.float(),
+                    attention_weights.float(), self.im2col_step)
+                output = output.to(value.dtype)
+                depth_score = depth_score.to(value.dtype)
             else:
-                MultiScaleDeformableAttnFunction = MultiScale3DDeformableAttnFunction_fp32
-            output, depth_score = MultiScaleDeformableAttnFunction.apply(
-                value, value_dpt_dist, spatial_shapes_3D, level_start_index, sampling_locations,
-                attention_weights, self.im2col_step)
+                output, depth_score = MultiScale3DDeformableAttnFunction_fp32.apply(
+                    value, value_dpt_dist, spatial_shapes_3D, level_start_index,
+                    sampling_locations, attention_weights, self.im2col_step)
         '''
         # Use this one if "depth_score" has gradient.
         if torch.cuda.is_available() and value.is_cuda:

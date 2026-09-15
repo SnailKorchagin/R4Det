@@ -13,10 +13,13 @@ from einops import rearrange
 from mmcv.runner import auto_fp16
 from mmcv.runner.base_module import BaseModule
 
-if str(torch.__version__) != '1.12.1+cu113':
+try:
     from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func as flash_attn_unpadded_kvpacked_func
     # flash_attn_unpadded_kvpacked_func for flash_attn 1.x, flash_attn_varlen_kvpacked_func for flash_attn 2.x
     from flash_attn.bert_padding import unpad_input, pad_input, index_first_axis
+    _FLASH_ATTN_AVAILABLE = True
+except ImportError:
+    _FLASH_ATTN_AVAILABLE = False
 
 
 def _in_projection_packed(q, k, v, w, b = None):
@@ -40,6 +43,12 @@ class FlashAttention(nn.Module):
     """
     def __init__(self, softmax_scale=None, attention_dropout=0.0, device=None, dtype=None):
         super().__init__()
+        if not _FLASH_ATTN_AVAILABLE:
+            raise ImportError(
+                "FlashAttention is optional and is only required by the PETR "
+                "model branch. Install a flash-attn build matching PyTorch/CUDA "
+                "before selecting that branch."
+            )
         self.softmax_scale = softmax_scale
         self.dropout_p = attention_dropout
         self.fp16_enabled = True
