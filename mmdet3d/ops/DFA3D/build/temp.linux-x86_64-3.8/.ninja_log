@@ -5,3 +5,9 @@
 4	24636	1778641365322801606	/data1/tangyousen/bevperception/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/cuda/cudabind.o	e7511e3840e090f6
 20013	41984	1778641382674747629	/data1/tangyousen/bevperception/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/wms_deform_attn.o	de993ea87a1bdbbb
 18978	43468	1778641384154743026	/data1/tangyousen/bevperception/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/pybind.o	d73908e35c66ad6d
+5	9194	1787186790948704383	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/cuda/ms_depth_score_sample_cuda.o	4cab2777abf5ae29
+4	9425	1787186791174712292	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/cuda/cudabind.o	f43ab3f2cebae6ca
+6	9591	1787186791344718241	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/ms_depth_score_sample.o	9cf6641c1e740e94
+5	10039	1787186791792733919	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/cuda/wms_deform_attn_cuda.o	3cd31c96493e2deb
+9194	18497	1787186800251029906	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/pybind.o	97052962b38115
+9428	18665	1787186800419035785	/home/snailkorchagin/Radar/R4Det/mmdet3d/ops/DFA3D/build/temp.linux-x86_64-3.8/dfa3D/ops/csrc/wms_deform_attn.o	c3a87fbf89a79f9e
