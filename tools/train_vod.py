@@ -127,6 +127,7 @@ def main():
     args = parse_args()
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
+    #读取参数
     cfg = Config.fromfile(args.config)
     # wandb init after runner set up main process  
     project = args.config.split('/')[-1].split('.')[0]

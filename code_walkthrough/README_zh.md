@@ -1,6 +1,13 @@
 # R4Det 单帧代码学习与检验流程
 
+[主要概览：原理与状态](../docs/LEARNING_OVERVIEW_ZH.md) · [详细原理专题](../docs/LEARNING_OVERVIEW_ZH.md#2-一帧的完整原理地图)
+
+
 [返回 R4Det 文档中心](../docs/README.md) · [本机运行手册](../docs/R4DET_RUNBOOK.md) · [自动生成状态表](STATUS.md)
+
+[从零学习总览：训练、配置、模型与推理](../docs/LEARNING_OVERVIEW_ZH.md)
+
+[train_vod.py 训练入口详解：数据集构建、权重与推理的关系](TRAIN_VOD_EXPLAINED_ZH.md)
 
 ## 1. 学习目标与事实边界
 

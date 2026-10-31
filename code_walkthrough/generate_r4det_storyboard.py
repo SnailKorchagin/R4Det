@@ -276,6 +276,7 @@ def main() -> None:
         raise RuntimeError("CUDA is unavailable; run through run_r4det_walkthrough.sh")
     OUT.mkdir(parents=True, exist_ok=True)
     logging.getLogger("mmcv").setLevel(logging.WARNING)
+    #该配置中包含模型结构和数据集，数据预处理和测试参数
     cfg = Config.fromfile(str(ROOT / "configs/r4det/TJ4D-R4Det_det3d_2x4_12e.py"))
     cfg.model.pretrained = None
     cfg.model.train_cfg = None
@@ -283,16 +284,50 @@ def main() -> None:
     cfg.data.test.ann_file = str(ROOT / "data/TJ4D/TJ4D_infos_public_smoke.pkl")
     cfg.data.test.data_root = str(ROOT / "data/TJ4D") + "/"
     cfg.data.test.test_mode = False
+    #创建数据集对象
+    #pipeline:雷达读取
+    # → 图像读取
+    # → 读取分割结果
+    # → 读取 2D/3D 标注
+    # → 图像增强
+    # → 点云范围过滤
+    # → 图像归一化
+    # → 图像 padding
+    # → 生成雷达深度
+    # → 转换为 tensor/DataContainer
+    # → 收集模型需要的字段
     dataset = build_dataset(cfg.data.test)
+    #创建batch读取数据迭代器，每一轮调用dataset
     data = next(iter(build_dataloader(dataset, samples_per_gpu=1, workers_per_gpu=0, dist=False, shuffle=False)))
 
+    # build_model(cfg.model)
+    # └── 创建 R4Det
+    #     ├── 创建图像 backbone
+    #     ├── 创建图像 FPN
+    #     ├── 创建深度网络
+    #     ├── 创建 LSS view transformer
+    #     ├── 创建 radar voxel encoder
+    #     ├── 创建 radar middle encoder
+    #     ├── 创建 SECOND backbone
+    #     ├── 创建 radar FPN
+    #     ├── 创建跨模态融合模块
+    #     ├── 创建 backward projection
+    #     └── 创建 3D detection head
     model = build_model(cfg.model, test_cfg=cfg.get("test_cfg"))
     checkpoint = load_checkpoint(model, str(ROOT / "checkpoints/final_tj4d.pth"), map_location="cpu")
+    # 1. 准备模型并注册监听器
+    # 2. 执行一次真实前向推理
+    # 3. 检查每个网络模块是否正常执行
+    # 4. 读取可视化需要的原始数据并画图
+    # 5. 保存 JSON、Markdown 报告并打印结果
     model.CLASSES = checkpoint.get("meta", {}).get("CLASSES", dataset.CLASSES)
     recorder = TraceRecorder(); recorder.register(model)
     parallel_model = MMDataParallel(model.cuda().eval(), device_ids=[0])
     torch.cuda.reset_peak_memory_stats(); started = time.perf_counter()
+    #这里只执行推理，不记录梯度，减少显存占用
     with torch.inference_mode():
+        #执行前向传播
+        #前面准备的是创建模型，加载权重，注册hook，移动到GPU
         output = parallel_model(return_loss=False, rescale=True, **data)
     torch.cuda.synchronize(); elapsed = time.perf_counter() - started; recorder.close()
     prediction = unwrap_prediction(output)

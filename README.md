@@ -1,5 +1,7 @@
 # R4Det
 
+中文学习入口：[主要概览：整体原理与当前状态](docs/LEARNING_OVERVIEW_ZH.md) · [文档中心](docs/README.md)
+
 [Paper](https://arxiv.org/abs/2603.11566) | **Zhongyu Xia, Yousen Tang, Yongtao Wang, Zhifeng Wang, Weijun Qin**
 
 This repository contains the official PyTorch implementation of: **R4Det: 4D Radar-Camera Fusion for High-Performance 3D Object Detection**
