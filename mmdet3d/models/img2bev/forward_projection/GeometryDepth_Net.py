@@ -127,14 +127,16 @@ class GeometryDepth_Net(BaseModule):
         depth_gaussian_labels = depth_gaussian_labels[fg_mask]
         depth_preds = depth_preds[fg_mask]
         pv_foreground_logit = rangeview_logit.squeeze(1)[fg_mask]
+        if depth_preds.shape[0] == 0:
+            return depth_preds.sum() * 0.0
 
         # sparse radar depth make edge bad, thus need stronger depth supervision 'foreground-aware'
         if self.use_radar_depth:
-            kl_loss = F.kl_div(torch.log(depth_preds + 1e-4), depth_gaussian_labels, reduction='none', log_target=False)
-            weighted_kl_loss = kl_loss * (1 + self.alpha * pv_foreground_logit.unsqueeze(-1))
-            depth_loss = weighted_kl_loss.sum() / weighted_kl_loss.shape[0]
+            kl_loss = F.kl_div(torch.log(depth_preds.float() + 1e-4), depth_gaussian_labels.float(), reduction='none', log_target=False)
+            weighted_kl_loss = kl_loss * (1 + self.alpha * pv_foreground_logit.float().unsqueeze(-1))
+            depth_loss = weighted_kl_loss.sum() / max(weighted_kl_loss.shape[0], 1)
         else:
-            depth_loss = F.kl_div(torch.log(depth_preds + 1e-4), depth_gaussian_labels, reduction='batchmean',
+            depth_loss = F.kl_div(torch.log(depth_preds.float() + 1e-4), depth_gaussian_labels.float(), reduction='batchmean',
                                   log_target=False)
 
         return depth_loss
@@ -155,7 +157,10 @@ class GeometryDepth_Net(BaseModule):
         # extra precise loss of depth
         gt_depths_down = get_downsample_depths_torch(depth_labels, down=self.downsample, processing='min')
         mask = (gt_depths_down > self.cam_depth_range[0]) & (gt_depths_down < self.cam_depth_range[1])
-        depth_loss_abs = F.smooth_l1_loss(precise_depth[mask], gt_depths_down[mask])
+        if mask.sum() > 0:
+            depth_loss_abs = F.smooth_l1_loss(precise_depth[mask].float(), gt_depths_down[mask].float())
+        else:
+            depth_loss_abs = precise_depth.sum() * 0.0
         '''
         # loss re-weighted
         depth_loss_prob = self.loss_prob_weight * depth_loss_prob
