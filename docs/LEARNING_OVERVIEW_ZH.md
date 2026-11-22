@@ -1,10 +1,10 @@
 # R4Det 主要概览：整体原理、运行状态与详细专题
 
-[文档中心](README.md) · [工作区总路线](../../docs/README.md) · [单帧代码图解](../code_walkthrough/README_zh.md)
+[文档中心](README.md) · [V2X-Radar-V 实施与 Gemini 交接](V2X_RADAR_V_REPRODUCTION_ZH.md) · [TJ4D 单帧图解](../code_walkthrough/README_zh.md)
 
 本页是 R4Det 的统一学习入口：先看输入、处理、输出的整体关系和各阶段状态，再进入原理专题。专题按“问题 → 原理/公式 → 性质 → 本地实现 → 可验证结果”展开，训练入门、代码逐段讲解和运行记录保留为配套资料。
 
-> 文档结构与源码核对日期：2026-10-28。下面的运行状态来自已有 STATUS、trace 和运行手册，不代表本次重新运行了推理、训练或评测。配置存在、代码实现、实际执行、效果验证是四种不同证据。
+**工程主线改为 V2X-Radar-V。** 用真实同步帧学习数据、标定和融合，继续完成训练、评测与逐帧展示。TJ4D `070070` 的已有 trace 用于先读通模型和检查回归。下面的 TJ4D 运行状态来自历史记录，V2X 运行结果待验证。
 
 ## 1. R4Det 在整条雷达链上解决什么
 
@@ -77,6 +77,7 @@ PDF、DGTF、IGDR 是整体设计中的名称；本地实现并不与论文术�
 |---|---|---|
 | 环境与单帧 | 运行手册记录 RTX 4060 Ti FP32/FP16 smoke，完整 checkpoint 严格加载 | 换环境后按手册重验 |
 | 数据 | 样例有真实 TJ4D 雷达、标定和标签 | 原始同步相机与完整正式 split；公开 smoke 是雷达投影代理图 |
+| V2X-Radar-V | 已核对官方车端下载、格式说明和评测协议 | 数据落盘与检查、真实投影、单帧前向、训练和评测均待执行。见[实施手册](V2X_RADAR_V_REPRODUCTION_ZH.md) |
 | 时序 | 有实现、配置和条件接口 | 真实有效相邻帧验证；保存 trace 中未触发 |
 | 实例分支 | 保存样例执行一次 | 真实实例正确性与检测收益对照 |
 | 训练 | 有训练入口和监督实现 | L2 小数据过拟合、梯度/更新及恢复训练证据 |
@@ -100,17 +101,16 @@ PDF、DGTF、IGDR 是整体设计中的名称；本地实现并不与论文术�
 
 当前 [TJ4D 配置](../configs/r4det/TJ4D-R4Det_det3d_2x4_12e.py) 为 `TJ4DDataset` 外包 `RepeatDataset(times=2)`，每 GPU 4 样本，AdamW 初始学习率 0.0002，`runner.max_epochs=18`。文件名中的 `12e` 不决定实际轮数。`load_from` 指向 `epoch_2.pth`，`resume_from=None`；它表达权重起点，不表示完整恢复上次训练进度。命令行覆盖后以实际生效配置为准。
 
-## 6. 推荐阅读顺序与配套资料
+## 6. 跟着工程产物学习
 
-先读本页的整体链与状态，再按原理专题 01 → 07 阅读。完全不了解训练时，先补前三项入门资料；需要逐行对应代码时再查单帧图解。
+先用现有 `070070` trace 走一遍模型，然后按 V2X 工程产物补知识。工程可先推进到真实投影，原理专题按使用顺序阅读。
 
-| 目的 | 资料 |
-|---|---|
-| 理解样本、loss、梯度、epoch | [深度学习训练基础](TRAINING_BASICS_ZH.md) |
-| 理解注册、Dataset、Pipeline、batch | [配置与数据流](CONFIG_AND_DATA_ZH.md) |
-| 跟踪脚本到框架的控制权转交 | [train_vod.py 详解](../code_walkthrough/TRAIN_VOD_EXPLAINED_ZH.md) |
-| 把专题原理对应到每次函数调用 | [单帧模型详解](../code_walkthrough/R4Det_ONE_FRAME_EXPLAINED_ZH.md) |
-| 理解保存、加载和恢复 | [权重与推理](CHECKPOINT_AND_INFERENCE_ZH.md) |
-| 追溯旧综合笔记 | [工作区 R4Det 综合专题](../../docs/topics/02_R4DET_ZH.md) |
+| 顺序 | 用什么练 | 学会什么 |
+|---|---|---|
+| 1. 数据和几何 | V2X 真实帧、数据检查 JSON 和雷达投影图 | 对上帧号、点字段和坐标，手算一点的像素位置与柱索引。读[配置与数据流](CONFIG_AND_DATA_ZH.md)、[点云与 Pillar](topics/01_POINTS_PILLAR_BEV_ZH.md)。 |
+| 2. 单帧模型 | 先看 `070070` 已有 trace，再对照 V2X 单帧 trace | 沿 `simple_test → extract_feat → decode/NMS` 阅读。理解深度分布、BEV 特征交换、IGDR 与检测头。读[单帧源码](../code_walkthrough/R4Det_ONE_FRAME_EXPLAINED_ZH.md)及上表专题 02、03、05、06。 |
+| 3. 训练闭环 | V2X 小样本日志与保存/恢复记录 | 从输入标注追到 `forward_train`、loss、梯度和参数更新。读[训练基础](TRAINING_BASICS_ZH.md)、[训练入口](../code_walkthrough/TRAIN_VOD_EXPLAINED_ZH.md)、[权重与恢复](CHECKPOINT_AND_INFERENCE_ZH.md)。 |
+| 4. 时序 | 同序列真实前后帧的有效/无效历史对照 | 理解可变形对齐、门控，以及输出是否实际传到下游。当前 TJ4D 单帧记录为 `SKIP`。读[DGTF 专题](topics/04_TEMPORAL_DGTF_ZH.md)。 |
+| 5. 评测与展示 | V2X 同一次实验的指标表、训练曲线和逐帧结果 | 看懂类别、IoU 与 AP 口径，按原图、点云和框检查误检漏检。读[验证与消融](topics/07_VALIDATION_ZH.md)。 |
 
-读完应能手算一个柱索引，解释深度分布与两种投影方向，区分 DGTF/IGDR，解释 32/56/16 输出通道，并准确指出代理相机、时序 SKIP、训练/正式指标待验证三类边界。之后即可继续工作区的 DinoRADE 学习路线。
+要开始实施，直接读 [Gemini 开工指令及阶段 1 验收](V2X_RADAR_V_REPRODUCTION_ZH.md)。要追溯原有阅读材料，查看[工作区 R4Det 综合专题](../../docs/topics/02_R4DET_ZH.md)。

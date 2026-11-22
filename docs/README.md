@@ -6,6 +6,8 @@
 
 [返回工作区总路线](../../docs/README.md)
 
+**当前工程主线为 V2X-Radar-V。** 从[实施手册与 Gemini 交接](V2X_RADAR_V_REPRODUCTION_ZH.md)开始做真实数据接入，从[学习总览](LEARNING_OVERVIEW_ZH.md#6-跟着工程产物学习)按产物读原理。
+
 <a id="top"></a>
 
 ## 目录
@@ -58,6 +60,8 @@ Radar BEV + Camera BEV
 - 正式验证需要完整同步相机和官方 split；
 - 本地上游 VoD 配置不完整，不能假定已具备一键 VoD 训练能力。
 
+V2X-Radar-V 已核对官方数据入口和车端协议。当前实施起点是数据检查和真实投影，V2X 前向、训练、评测与展示均待验证。
+
 [返回目录](#top)
 
 <a id="documents"></a>
@@ -65,6 +69,7 @@ Radar BEV + Camera BEV
 ## 3. 详细文档
 
 - [主要概览：整体原理、全部阶段状态与阅读路线](LEARNING_OVERVIEW_ZH.md)
+- [V2X-Radar-V 实施手册与 Gemini 交接](V2X_RADAR_V_REPRODUCTION_ZH.md)
 - [原理01：点云、Pillar 与雷达 BEV](topics/01_POINTS_PILLAR_BEV_ZH.md)
 - [原理02：图像与雷达辅助深度](topics/02_IMAGE_DEPTH_ZH.md)
 - [原理03：LSS、painting、跨模态融合与 LACA](topics/03_PROJECTION_FUSION_ZH.md)
@@ -92,16 +97,7 @@ Radar BEV + Camera BEV
 
 ## 4. 推荐执行顺序
 
-1. 复跑 FP32/FP16 smoke；
-2. 阅读配置和 `extract_pts_feat/extract_img_feat`；
-3. 跟踪 radar depth 和 image-to-BEV；
-4. 分别理解 PDF、DGTF、IGDR；
-5. 用小数据过拟合训练链；
-6. 获取真实同步数据后复现正式验证；
-7. 建立 RadarOnly、CameraOnly、Fusion；
-8. 接入 Radar_Process 统一点合同；
-9. 做点丢失、相机失效和标定扰动；
-10. 输出统一 Detection/RadarMeasurement 给跟踪工程。
+按[实施阶段与通过条件](V2X_RADAR_V_REPRODUCTION_ZH.md#3-实施阶段与通过条件)推进。先在 CPU 上做真实相机投影，随后接入 GPU 单帧前向、跑小样本训练及恢复，再做全量训练、评测和可视化。有可靠相邻帧数据时加入 DGTF。已有 TJ4D smoke 用于单帧回归和源码学习。
 
 [返回目录](#top)
 
@@ -109,11 +105,6 @@ Radar BEV + Camera BEV
 
 ## 5. 完成标准
 
-- 每个点可回溯到物理候选和标定；
-- RadarOnly/CameraOnly/Fusion均有真实同步数据指标；
-- PDF、DGTF、IGDR逐项消融；
-- Doppler、SNR和协方差特征有消融；
-- 相机和点云失效时可安全降级；
-- AP、Recall、定位RMSE、延迟按距离和点数切片报告。
+V2X 主线完成时应有可复跑的数据检查、训练和评测命令，及对应的配置、权重、分类 AP、训练曲线和逐帧展示。纯雷达与融合对照、模块消融、Radar_Process 接入及跟踪实验见[点云融合实验路线](POINT_CLOUD_FUSION_LEARNING_ZH.md)。
 
 [返回目录](#top) · [返回工作区总路线](../../docs/README.md)

@@ -60,6 +60,8 @@ from .loading_hop import (hop_LoadMultiViewImageFromFiles,
 from .loading_changan import *
 from .transforms_3d_changan import *
 from .loading_custom import LoadMyDepthFromFile,LoadMyDepthFromFilevod,DownsampleDepthMap,BoxesFromSegMask,GenerateBevFromBoxes,LoadVLSAMAnnotations,LoadVLSAMAnnotationsvod
+from .v2x_radar_v_loading import (LoadV2XRadarPoints, LoadOptionalSegmentation,
+                                    CreateOptionalDepthFromLiDAR, GenerateBoxMasksFrom2D)
 __all__ = [
     'ObjectSample', 'RandomFlip3D', 'ObjectNoise', 'GlobalRotScaleTrans','GlobalRotScaleTrans_radar',
     'PointShuffle', 'ObjectRangeFilter', 'PointsRangeFilter', 'Collect3D',
@@ -99,5 +101,7 @@ __all__ = [
     'LoadOccGTFromFile_Changan',
     'LoadAnnotationsBEVDepth_Changan',
     'LoadPointsFromFile_Changan',
-    'CustomCollect3D2', 'LoadMyDepthFromFile','LoadMyDepthFromFilevod','DownsampleDepthMap','BoxesFromSegMask','GenerateBevFromBoxes','LoadVLSAMAnnotations','LoadVLSAMAnnotationsvod'
+    'CustomCollect3D2', 'LoadMyDepthFromFile','LoadMyDepthFromFilevod','DownsampleDepthMap','BoxesFromSegMask','GenerateBevFromBoxes','LoadVLSAMAnnotations','LoadVLSAMAnnotationsvod',
+    'LoadV2XRadarPoints', 'LoadOptionalSegmentation', 'CreateOptionalDepthFromLiDAR',
+    'GenerateBoxMasksFrom2D'
 ] + _AV2_PIPELINE_NAMES

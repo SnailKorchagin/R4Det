@@ -241,8 +241,10 @@ class R4Det(MVXFasterRCNN):
         self.meta_info = meta_info
         self.figures_path = meta_info['figures_path']
         self.project_name = meta_info['project_name']
+        self.dataset_type = 'TJ4D'
         if 'vod' in self.project_name.lower(): self.dataset_type = 'VoD'
         if 'tj4d' in self.project_name.lower(): self.dataset_type = 'TJ4D'
+        if 'v2x' in self.project_name.lower(): self.dataset_type = 'V2X'
 
         # other papa for convenience
         self.xbound = self.grid_config['xbound']
@@ -356,7 +358,7 @@ class R4Det(MVXFasterRCNN):
             if pred_masks_per_img.shape[0] == 0:
                 continue
             global_idx_offset = sum(num_pos_per_img[:i])
-            cam2lidar = torch.inverse(torch.tensor(img_meta['lidar2cam'], device=device, dtype=torch.float32))
+            cam2lidar = torch.tensor(np.linalg.inv(img_meta['lidar2cam']), device=device, dtype=torch.float32)
             intrins_matrix = torch.tensor(img_meta['cam2img'], device=device, dtype=torch.float32)
             aug_post_rot = torch.tensor(img_meta['cam_aware'][3][:2, :2], device=device, dtype=torch.float32)
             aug_post_tran = torch.tensor(img_meta['cam_aware'][4][:2], device=device, dtype=torch.float32)
@@ -791,17 +793,17 @@ class R4Det(MVXFasterRCNN):
                 valid_context_features = F.grid_sample(context[i].unsqueeze(0),
                                                        valid_img_pts_norm.unsqueeze(0).unsqueeze(1), align_corners=True)
                 valid_context_features = valid_context_features.squeeze(0).squeeze(1).permute(1, 0)  # (num_points, C)
-            if self.dataset_type == 'TJ4D':
+            if self.dataset_type in ('TJ4D', 'V2X'):
                 valid_context_features = context[i, :, valid_img_pts_int[:, 1], valid_img_pts_int[:, 0]]
                 valid_context_features = valid_context_features.permute(1, 0)  # (num_points, C)
 
             # Get corresponding depth_logits & Weight context_features using the log-transformed depth probabilities
             if self.painting_use_depth_prob:
-                depth_probs = depth_logits[i, :, valid_img_pts_int[:, 1], valid_img_pts_int[:, 0]]
+                depth_probs = depth_logits[i, :, valid_img_pts_int[:, 1], valid_img_pts_int[:, 0]].float()
                 if self.dataset_type == 'VoD': power_exponent = 1
-                if self.dataset_type == 'TJ4D': power_exponent = 2
+                if self.dataset_type in ('TJ4D', 'V2X'): power_exponent = 2
                 power_depth_probs = depth_probs ** power_exponent
-                power_depth_probs /= power_depth_probs.sum(dim=0, keepdim=True)  # Normalize
+                power_depth_probs = power_depth_probs / (power_depth_probs.sum(dim=0, keepdim=True) + 1e-6)  # Normalize
                 depth_probs = power_depth_probs
                 if self.dataset_type == 'VoD':
                     depth_indices = ((valid_depth_values - cam_depth_range[0]) / cam_depth_range[2])
@@ -814,7 +816,7 @@ class R4Det(MVXFasterRCNN):
                     lower_prob_values = depth_probs[lower_indices, range(lower_indices.shape[0])]
                     upper_prob_values = depth_probs[upper_indices, range(upper_indices.shape[0])]
                     depth_prob_values = lower_weight * lower_prob_values + upper_weight * upper_prob_values
-                if self.dataset_type == 'TJ4D':
+                if self.dataset_type in ('TJ4D', 'V2X'):
                     depth_indices = ((valid_depth_values - cam_depth_range[0]) / cam_depth_range[2]).long()
                     depth_indices = torch.clamp(depth_indices, 0, depth_probs.shape[0] - 1)
                     depth_prob_values = depth_probs[depth_indices, torch.arange(depth_indices.shape[0], device=device)]
@@ -1510,7 +1512,7 @@ class R4Det(MVXFasterRCNN):
                 possible_mask_h_all = torch.cat([grid_min[:, 0:1], grid_max[:, 0:1]], dim=1).tolist()
                 possible_mask_w_all = torch.cat([grid_min[:, 1:2], grid_max[:, 1:2]], dim=1).tolist()
                 for n in range(num_rectangles):
-                    clock_corners = bbox_corners[n].cpu().numpy()[(0, 1, 3, 2), :]
+                    clock_corners = bbox_corners[n].float().cpu().numpy()[(0, 1, 3, 2), :]
                     poly = Polygon(clock_corners)
                     h_list = possible_mask_h_all[n];
                     h_list = np.arange(h_list[0] - 1, h_list[1] + 1, 1);

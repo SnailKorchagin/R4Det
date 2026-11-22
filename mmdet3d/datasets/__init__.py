@@ -6,6 +6,7 @@ except ModuleNotFoundError as exc:
         raise
     _VOD_DATASET_NAMES = []
 from .TJ4D_dataset import TJ4DDataset
+from .v2x_radar_v_dataset import V2XRadarVDataset
 from .kitti_dataset import KittiDataset
 from .custom_3d import Custom3DDataset
 from .builder import DATASETS, PIPELINES, build_dataset
@@ -15,7 +16,7 @@ from .pipelines import (LoadPointsFromFile, LoadImageFromFile, Collect3D,
                         DefaultFormatBundle3D, LoadAnnotations3D)
 
 __all__ = [
-    'TJ4DDataset', 'KittiDataset', 'Custom3DDataset',
+    'TJ4DDataset', 'V2XRadarVDataset', 'KittiDataset', 'Custom3DDataset',
     'build_dataloader', 'DATASETS', 'build_dataset', 'PIPELINES',
     'LoadPointsFromFile', 'LoadImageFromFile', 'Collect3D',
     'DefaultFormatBundle3D', 'LoadAnnotations3D'
