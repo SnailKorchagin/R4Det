@@ -51,8 +51,9 @@ echo "[3/4] Installing PyTorch 2.0.1+cu118, MMCV 1.7.2, MMDet 2.28.2, and repo r
   -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/index.html
 "${PIP}" install -q mmdet==2.28.2 mmsegmentation==0.30.0 Pyro4 \
   lyft-dataset-sdk==0.0.8 terminaltables pycocotools descartes fire networkx pandas \
-  fvcore iopath yacs termcolor cloudpickle addict
+  fvcore iopath yacs termcolor cloudpickle addict hydra-core omegaconf
 "${PIP}" install -q natten==0.14.6 --no-build-isolation
+FORCE_CUDA=1 "${PIP}" install -q -e "${REPO_DIR}/detr2" --no-build-isolation --no-deps
 "${PIP}" install -q -r "${REPO_DIR}/requirements.txt"
 
 echo "[4/4] Building mmdet3d CUDA extensions for sm_${GPU_ARCH//./}..."
