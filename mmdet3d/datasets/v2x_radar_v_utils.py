@@ -297,17 +297,55 @@ def parse_calib_file(calib_path: str | Path) -> Dict[str, np.ndarray]:
 
 
 def read_radar_bin(radar_path: str | Path, num_features: int = 5) -> np.ndarray:
-    """Read raw V2X-Radar-V 4D radar binary file as float32 array of shape (N, 5)."""
+    """Read V2X-Radar-V 4D radar binary file as canonical (N, 5) float32 array.
+
+    V2X-Radar-V contains two real radar binary schemas across the 11,390 frames:
+    - 5-column (frames 000000..008999): ``[x_radar, y_radar, z_radar, intensity, velocity]``
+    - 4-column (frames 009000..012999): ``[x_radar, y_radar, z_radar, intensity]``
+      (no velocity column; padded with ``velocity = 0.0`` as column 4).
+
+    When ``raw.size`` is divisible by both 4 and 5, geometry checks (forward
+    ``y_radar > 0`` and non-negative ``intensity >= 0``) disambiguate cleanly.
+    """
     path = Path(radar_path)
     if not path.is_file():
         raise FileNotFoundError(f"Radar file not found: {path}")
     raw = np.fromfile(str(path), dtype=np.float32)
-    if raw.size % num_features != 0:
+    if raw.size == 0:
+        return np.zeros((0, 5), dtype=np.float32)
+
+    if num_features != 5:
+        if raw.size % num_features != 0:
+            raise ValueError(
+                f"Radar file {path} has {raw.size} float32 values, "
+                f"not divisible by {num_features}."
+            )
+        return raw.reshape(-1, num_features)
+
+    div5 = (raw.size % 5 == 0)
+    div4 = (raw.size % 4 == 0)
+    if not div5 and not div4:
         raise ValueError(
             f"Radar file {path} has {raw.size} float32 values, "
-            f"not divisible by {num_features}."
+            "not divisible by 5 or 4."
         )
-    return raw.reshape(-1, num_features)
+
+    use_4col = False
+    if div4 and not div5:
+        use_4col = True
+    elif div4 and div5:
+        a5 = raw.reshape(-1, 5)
+        a4 = raw.reshape(-1, 4)
+        score5 = float(np.mean((a5[:, 1] > 0) & (a5[:, 3] >= 0)))
+        score4 = float(np.mean((a4[:, 1] > 0) & (a4[:, 3] >= 0)))
+        use_4col = score4 > score5
+
+    if use_4col:
+        pts4 = raw.reshape(-1, 4)
+        vel_zero = np.zeros((pts4.shape[0], 1), dtype=np.float32)
+        return np.concatenate([pts4, vel_zero], axis=1)
+
+    return raw.reshape(-1, 5)
 
 
 def transform_points_homogeneous(
