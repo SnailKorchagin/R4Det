@@ -50,10 +50,13 @@ echo "[3/4] Installing PyTorch 2.0.1+cu118, MMCV 1.7.2, MMDet 2.28.2, and repo r
 "${PIP}" install -q mmcv-full==1.7.2 \
   -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0.0/index.html
 "${PIP}" install -q mmdet==2.28.2 mmsegmentation==0.30.0 Pyro4 \
-  lyft-dataset-sdk==0.0.8 terminaltables pycocotools descartes fire networkx pandas
+  lyft-dataset-sdk==0.0.8 terminaltables pycocotools descartes fire networkx pandas \
+  fvcore iopath yacs termcolor cloudpickle addict
+"${PIP}" install -q natten==0.14.6+torch200cu118 \
+  -f https://shi-labs.com/natten/wheels/cu118/torch2.0.0/index.html
 "${PIP}" install -q -r "${REPO_DIR}/requirements.txt"
 
 echo "[4/4] Building mmdet3d CUDA extensions for sm_${GPU_ARCH//./}..."
 FORCE_CUDA=1 "${PIP}" install -q -e "${REPO_DIR}" --no-build-isolation --no-deps
 
-"${PY}" -c "import torch, mmcv, mmdet, mmdet3d; print('COLAB_ENV_OK', torch.__version__, 'cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0), 'mmcv:', mmcv.__version__)"
+"${PY}" -c "import torch, mmcv, mmdet, mmdet3d; from mmdet3d.models import build_model; print('COLAB_ENV_OK', torch.__version__, 'cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0), 'mmcv:', mmcv.__version__)"
