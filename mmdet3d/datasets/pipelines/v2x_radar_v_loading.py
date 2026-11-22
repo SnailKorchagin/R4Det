@@ -227,7 +227,20 @@ class CreateOptionalDepthFromLiDAR:
             results["my_gt_depth"] = self._make_my_gt_depth(gt_depth)
             return results
 
-        lidar_raw = np.fromfile(lidar_path, dtype=np.float32).reshape(-1, 4)[:, :3]
+        raw_vals = np.fromfile(lidar_path, dtype=np.float32)
+        if raw_vals.size == 0:
+            lidar_raw = np.zeros((0, 3), dtype=np.float32)
+        elif raw_vals.size % 6 == 0 and float(np.median(raw_vals.reshape(-1, 6)[:, 5])) > 1e8:
+            # Frames 009000+ store 6-col LiDAR: [x, y, z, intensity, ring, unix_timestamp]
+            lidar_raw = raw_vals.reshape(-1, 6)[:, :3]
+        elif raw_vals.size % 4 == 0:
+            lidar_raw = raw_vals.reshape(-1, 4)[:, :3]
+        elif raw_vals.size % 6 == 0:
+            lidar_raw = raw_vals.reshape(-1, 6)[:, :3]
+        elif raw_vals.size % 3 == 0:
+            lidar_raw = raw_vals.reshape(-1, 3)
+        else:
+            lidar_raw = np.zeros((0, 3), dtype=np.float32)
         cam2img = deepcopy(results["cam2img"]).astype(np.float64)
         rots, trans, intrins, post_rots, post_trans = results["cam_aware"][:5]
         post_rots_np = (
