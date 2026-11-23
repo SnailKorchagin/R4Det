@@ -69,6 +69,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grad-accum-steps", type=int, default=1, help="Gradient accumulation steps (enables effective batch >= 2 on 8GB GPUs).")
     parser.add_argument("--freeze-modules", nargs="*", default=[], help="Top-level model submodule names to freeze with no_grad (e.g. depth_net backward_projection) for 8GB GPUs.")
     parser.add_argument("--save-interval", type=int, default=1, help="Save checkpoint every N epochs.")
+    parser.add_argument(
+        "--save-step-interval",
+        type=int,
+        default=0,
+        help="Save mid-epoch latest.pth every N optimizer update steps (0 disables).",
+    )
+    parser.add_argument(
+        "--save-time-interval",
+        type=float,
+        default=0.0,
+        help="Save mid-epoch latest.pth whenever elapsed seconds since last save >= N (0 disables).",
+    )
     parser.add_argument("--log-interval", type=int, default=1, help="Print/log every N steps.")
     parser.add_argument("--cfg-options", nargs="+", action=DictAction, default=None)
     return parser.parse_args()
@@ -149,9 +161,12 @@ def save_checkpoint_state(
     epoch: int,
     global_step: int,
     meta: Dict[str, Any],
+    scaler: Optional[torch.cuda.amp.GradScaler] = None,
+    step_in_epoch: int = 0,
+    mid_epoch: bool = False,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
+    payload: Dict[str, Any] = {
         "state_dict": model.state_dict(),
         "optimizer": optimizer.state_dict(),
         "scheduler": scheduler.state_dict(),
@@ -159,9 +174,15 @@ def save_checkpoint_state(
             **meta,
             "epoch": epoch,
             "iter": global_step,
+            "step_in_epoch": int(step_in_epoch),
+            "mid_epoch": bool(mid_epoch),
         },
     }
-    torch.save(payload, str(path))
+    if scaler is not None and scaler.is_enabled():
+        payload["scaler"] = scaler.state_dict()
+    tmp_path = path.with_name(path.name + ".tmp")
+    torch.save(payload, str(tmp_path))
+    os.replace(str(tmp_path), str(path))
 
 
 def main() -> None:
@@ -322,8 +343,13 @@ def main() -> None:
         optimizer, T_max=max(max_epochs, 1), eta_min=min_lr
     )
 
+    amp_dtype = torch.bfloat16 if (args.amp_dtype == "bf16" and torch.cuda.is_bf16_supported()) else torch.float16
+    use_scaler = bool(args.amp and amp_dtype == torch.float16)
+    scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
+
     start_epoch = 0
     global_step = 0
+    resume_step_in_epoch = 0
     if args.resume_from:
         ckpt = torch.load(args.resume_from, map_location="cpu")
         incomp = model_dp.module.load_state_dict(ckpt["state_dict"], strict=False)
@@ -331,27 +357,36 @@ def main() -> None:
             optimizer.load_state_dict(ckpt["optimizer"])
         if "scheduler" in ckpt:
             scheduler.load_state_dict(ckpt["scheduler"])
+        if use_scaler and "scaler" in ckpt:
+            scaler.load_state_dict(ckpt["scaler"])
         meta = ckpt.get("meta", {})
         start_epoch = int(meta.get("epoch", 0))
         global_step = int(meta.get("iter", 0))
+        if bool(meta.get("mid_epoch", False)):
+            resume_step_in_epoch = int(meta.get("step_in_epoch", 0))
         load_info = {
             "mode": "resume_from",
             "path": args.resume_from,
             "resumed_epoch": start_epoch,
+            "resumed_step_in_epoch": resume_step_in_epoch,
+            "resumed_mid_epoch": bool(meta.get("mid_epoch", False)),
             "resumed_iter": global_step,
             "resumed_lr": float(optimizer.param_groups[0]["lr"]),
             "missing_keys": list(incomp.missing_keys),
             "unexpected_keys": list(incomp.unexpected_keys),
         }
+        print(
+            f"[Resume] path={args.resume_from} start_epoch={start_epoch + 1}/{max_epochs} "
+            f"step_in_epoch={resume_step_in_epoch} iter={global_step} "
+            f"lr={optimizer.param_groups[0]['lr']:.6g}",
+            flush=True,
+        )
 
     # Snapshot trainable weights before training to verify real parameter updates
     params_before = snapshot_trainable_params(model_dp.module)
     metrics_path = work_dir / "train_metrics.jsonl"
     grad_clip_norm = float(cfg.optimizer_config.get("grad_clip", {}).get("max_norm", 35.0))
 
-    amp_dtype = torch.bfloat16 if (args.amp_dtype == "bf16" and torch.cuda.is_bf16_supported()) else torch.float16
-    use_scaler = bool(args.amp and amp_dtype == torch.float16)
-    scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
 
@@ -359,6 +394,12 @@ def main() -> None:
     all_grads_finite = True
     any_nan_loss = False
     t_start = time.perf_counter()
+    last_save_time = t_start
+    ckpt_meta = {
+        "CLASSES": list(dataset.CLASSES),
+        "config": args.config,
+        "seed": args.seed,
+    }
 
     model_dp.train()
     if samples_per_gpu == 1:
@@ -369,13 +410,37 @@ def main() -> None:
                 module.eval()
 
     grad_accum = max(1, int(args.grad_accum_steps))
+    total_batches = len(loader)
     for epoch in range(start_epoch, max_epochs):
         ep_losses: List[float] = []
         ep_grad_norms: List[float] = []
         ep_t0 = time.perf_counter()
         optimizer.zero_grad(set_to_none=True)
 
-        for step_idx, batch in enumerate(loader):
+        skip_steps = resume_step_in_epoch if (epoch == start_epoch and resume_step_in_epoch > 0) else 0
+        if skip_steps > 0:
+            all_batches = list(loader.batch_sampler)
+            remaining_batches = all_batches[skip_steps:]
+            print(
+                f"[Resume] Fast-forwarding Epoch {epoch + 1}/{max_epochs}: "
+                f"skipping {skip_steps}/{len(all_batches)} batches "
+                f"({len(remaining_batches)} remaining)",
+                flush=True,
+            )
+            epoch_loader = torch.utils.data.DataLoader(
+                dataset,
+                batch_sampler=remaining_batches,
+                num_workers=loader.num_workers,
+                collate_fn=loader.collate_fn,
+                pin_memory=loader.pin_memory,
+                worker_init_fn=loader.worker_init_fn,
+            )
+            resume_step_in_epoch = 0
+        else:
+            epoch_loader = loader
+
+        for offset, batch in enumerate(epoch_loader):
+            step_idx = skip_steps + offset
             with torch.cuda.amp.autocast(enabled=args.amp, dtype=amp_dtype):
                 losses = model_dp(return_loss=True, **batch)
                 total_loss, log_vars = parse_losses(losses)
@@ -390,7 +455,7 @@ def main() -> None:
             else:
                 scaled_loss.backward()
 
-            is_update_step = ((step_idx + 1) % grad_accum == 0) or ((step_idx + 1) == len(loader))
+            is_update_step = ((step_idx + 1) % grad_accum == 0) or ((step_idx + 1) == total_batches)
             grad_norm = 0.0
             if is_update_step:
                 if use_scaler:
@@ -437,9 +502,34 @@ def main() -> None:
 
                 if global_step % args.log_interval == 0:
                     print(
-                        f"[Epoch {epoch + 1}/{max_epochs} | Iter {global_step}] "
+                        f"[Epoch {epoch + 1}/{max_epochs} | Step {step_idx + 1}/{total_batches} | Iter {global_step}] "
                         f"loss={log_vars['total_loss']:.4f} lr={lr_now:.6g} "
-                        f"grad_norm={grad_norm:.3f} mem={record['peak_mem_mib']}MiB"
+                        f"grad_norm={grad_norm:.3f} mem={record['peak_mem_mib']}MiB",
+                        flush=True,
+                    )
+
+                now = time.perf_counter()
+                due_by_step = args.save_step_interval > 0 and (global_step % args.save_step_interval == 0)
+                due_by_time = args.save_time_interval > 0.0 and ((now - last_save_time) >= args.save_time_interval)
+                if (due_by_step or due_by_time) and ((step_idx + 1) < total_batches):
+                    latest_path = work_dir / "latest.pth"
+                    save_checkpoint_state(
+                        latest_path,
+                        model_dp.module,
+                        optimizer,
+                        scheduler,
+                        epoch=epoch,
+                        global_step=global_step,
+                        meta=ckpt_meta,
+                        scaler=scaler,
+                        step_in_epoch=step_idx + 1,
+                        mid_epoch=True,
+                    )
+                    last_save_time = time.perf_counter()
+                    print(
+                        f"[Checkpoint] Saved mid-epoch {latest_path} "
+                        f"(epoch={epoch + 1}/{max_epochs}, step={step_idx + 1}/{total_batches}, iter={global_step})",
+                        flush=True,
                     )
 
         scheduler.step()
@@ -456,11 +546,6 @@ def main() -> None:
         )
 
         if (epoch + 1) % args.save_interval == 0 or (epoch + 1) == max_epochs:
-            ckpt_meta = {
-                "CLASSES": list(dataset.CLASSES),
-                "config": args.config,
-                "seed": args.seed,
-            }
             ckpt_path = work_dir / f"epoch_{epoch + 1}.pth"
             save_checkpoint_state(
                 ckpt_path,
@@ -470,6 +555,9 @@ def main() -> None:
                 epoch=epoch + 1,
                 global_step=global_step,
                 meta=ckpt_meta,
+                scaler=scaler,
+                step_in_epoch=0,
+                mid_epoch=False,
             )
             latest_path = work_dir / "latest.pth"
             save_checkpoint_state(
@@ -480,6 +568,15 @@ def main() -> None:
                 epoch=epoch + 1,
                 global_step=global_step,
                 meta=ckpt_meta,
+                scaler=scaler,
+                step_in_epoch=0,
+                mid_epoch=False,
+            )
+            last_save_time = time.perf_counter()
+            print(
+                f"[Checkpoint] Saved {ckpt_path} & {latest_path} "
+                f"(completed epoch={epoch + 1}/{max_epochs}, iter={global_step})",
+                flush=True,
             )
 
     param_delta = compute_param_delta_norm(model_dp.module, params_before)
@@ -507,7 +604,11 @@ def main() -> None:
     }
     summary_path = work_dir / "train_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    print(f"TRAIN_OK summary={summary_path} param_delta_l2={param_delta['l2_delta_norm']} peak_mem={summary['peak_gpu_memory_mib']}MiB")
+    print(
+        f"TRAIN_OK summary={summary_path} param_delta_l2={param_delta['l2_delta_norm']} "
+        f"peak_mem={summary['peak_gpu_memory_mib']}MiB",
+        flush=True,
+    )
 
 
 if __name__ == "__main__":

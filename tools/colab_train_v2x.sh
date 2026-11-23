@@ -12,6 +12,8 @@ MAX_EPOCHS="${MAX_EPOCHS:-12}"
 LR="${LR:-2e-4}"
 SEED="${SEED:-42}"
 LOG_INTERVAL="${LOG_INTERVAL:-50}"
+SAVE_STEP_INTERVAL="${SAVE_STEP_INTERVAL:-250}"
+SAVE_TIME_INTERVAL="${SAVE_TIME_INTERVAL:-1800}"
 
 export PATH="${ENV_DIR}/bin:/usr/bin:/bin"
 export CUDA_HOME="${ENV_DIR}"
@@ -60,9 +62,9 @@ else
   CKPT_ARGS=()
 fi
 
-echo "[Colab Train] GPU=${GPU_NAME} (${GPU_MEM_MIB} MiB) | batch=${BATCH_SIZE} x accum=${GRAD_ACCUM} | epochs=${MAX_EPOCHS} | work_dir=${WORK_DIR}"
+echo "[Colab Train] GPU=${GPU_NAME} (${GPU_MEM_MIB} MiB) | batch=${BATCH_SIZE} x accum=${GRAD_ACCUM} | epochs=${MAX_EPOCHS} | save_every=${SAVE_STEP_INTERVAL}iters/${SAVE_TIME_INTERVAL}s | work_dir=${WORK_DIR}"
 
-"${ENV_DIR}/bin/python" tools/train_v2x_radar_v.py \
+"${ENV_DIR}/bin/python" -u tools/train_v2x_radar_v.py \
   --config configs/r4det/V2X-Radar-V-R4Det_single_frame.py \
   --work-dir "${WORK_DIR}" \
   "${CKPT_ARGS[@]}" \
@@ -75,6 +77,8 @@ echo "[Colab Train] GPU=${GPU_NAME} (${GPU_MEM_MIB} MiB) | batch=${BATCH_SIZE} x
   --amp --amp-dtype fp16 \
   --seed "${SEED}" \
   --save-interval 1 \
+  --save-step-interval "${SAVE_STEP_INTERVAL}" \
+  --save-time-interval "${SAVE_TIME_INTERVAL}" \
   --log-interval "${LOG_INTERVAL}" \
   "${FREEZE_ARGS[@]}" \
   "$@"
