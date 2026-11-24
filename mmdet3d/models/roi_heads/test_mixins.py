@@ -275,16 +275,35 @@ class MaskTestMixin:
             # 如果所有图像都没有检测框
             # <<< 新增: 构造空的中间结果字典 >>>
             empty_device = x[0].device
+            roi_out_size = (14, 14)
+            empty_inst_feats = None
+            if hasattr(self, 'mask_roi_extractor') and self.mask_roi_extractor is not None:
+                if hasattr(self.mask_roi_extractor, 'roi_layers') and len(self.mask_roi_extractor.roi_layers) > 0:
+                    roi_out_size = self.mask_roi_extractor.roi_layers[0].output_size
+                elif hasattr(self.mask_roi_extractor, 'roi_layer'):
+                    roi_out_size = self.mask_roi_extractor.roi_layer.output_size
+                if isinstance(roi_out_size, int):
+                    roi_out_size = (roi_out_size, roi_out_size)
+                empty_inst_feats = torch.empty(
+                    (0, self.mask_roi_extractor.out_channels, roi_out_size[0], roi_out_size[1]),
+                    device=empty_device,
+                )
+            empty_mask_logits = None
+            if hasattr(self, 'mask_head') and self.mask_head is not None:
+                mask_out_size = getattr(self.mask_head, 'mask_size', None)
+                if mask_out_size is None:
+                    mask_out_size = (roi_out_size[0] * 2, roi_out_size[1] * 2)
+                elif isinstance(mask_out_size, int):
+                    mask_out_size = (mask_out_size, mask_out_size)
+                empty_mask_logits = torch.empty(
+                    (0, self.mask_head.num_classes, mask_out_size[0], mask_out_size[1]),
+                    device=empty_device,
+                )
             empty_intermediate_results_dict = {
-                'instance_features': torch.empty(
-                    (0, self.mask_roi_extractor.out_channels, self.mask_roi_extractor.roi_layer.output_size[0],
-                     self.mask_roi_extractor.roi_layer.output_size[1]), device=empty_device) if hasattr(self,
-                                                                                                        'mask_roi_extractor') else None,
-                'pred_masks_logits': torch.empty(
-                    (0, self.mask_head.num_classes, self.mask_head.mask_size[0], self.mask_head.mask_size[1]),
-                    device=empty_device) if hasattr(self, 'mask_head') else None,
+                'instance_features': empty_inst_feats,
+                'pred_masks_logits': empty_mask_logits,
                 'rois': torch.empty((0, 5), device=empty_device),
-                'det_labels': torch.empty((0,), dtype=torch.long, device=empty_device)
+                'det_labels': torch.empty((0,), dtype=torch.long, device=empty_device),
             }
             # <<< 新增结束 >>>
             pass  # segm_results 保持为 [None, None, ...]
