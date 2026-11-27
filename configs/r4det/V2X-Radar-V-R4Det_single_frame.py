@@ -389,12 +389,12 @@ model = dict(
         anchor_generator=dict(
             type='Anchor3DRangeGenerator',
             ranges=[
-                [0, -40.0, -1.163, 70.4, 40.0, -1.163],
-                [0, -40.0, -1.353, 70.4, 40.0, -1.353],
-                [0, -40.0, -1.363, 70.4, 40.0, -1.363],
-                [0, -40.0, -1.403, 70.4, 40.0, -1.403],
+                [0, -39.68, -2.057, 69.12, 39.68, -2.057],
+                [0, -39.68, -2.175, 69.12, 39.68, -2.175],
+                [0, -39.68, -2.098, 69.12, 39.68, -2.098],
+                [0, -39.68, -2.087, 69.12, 39.68, -2.087],
             ],
-            sizes=[[0.6, 0.8, 1.69], [0.78, 1.77, 1.60], [1.84, 4.56, 1.70], [2.66, 10.76, 3.47]],
+            sizes=[[0.67, 0.64, 1.70], [0.76, 1.61, 1.60], [1.80, 4.23, 1.60], [2.70, 11.19, 3.14]],
             rotations=[0, 1.57],
             reshape_out=False),
         assigner_per_size=True,
@@ -478,9 +478,9 @@ model = dict(
                 dict(
                     type='MaxIoUAssigner',
                     iou_calculator=dict(type='BboxOverlapsNearest3D'),
-                    pos_iou_thr=0.5,
-                    neg_iou_thr=0.35,
-                    min_pos_iou=0.35,
+                    pos_iou_thr=0.35,
+                    neg_iou_thr=0.2,
+                    min_pos_iou=0.2,
                     ignore_iof_thr=-1),
             ],
             allowed_border=0,
@@ -506,7 +506,7 @@ model = dict(
             nms_post=num_3d_proposals,
             max_num=num_3d_proposals,
             score_thr=0.0,
-            nms_thr=0.5,
+            nms_thr=0.2,
             min_bbox_size=0)),
 )
 
