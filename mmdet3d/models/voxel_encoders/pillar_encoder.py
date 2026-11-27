@@ -440,7 +440,7 @@ class Radar7PillarVFE(nn.Module):
         for pfn in self.pfn_layers:
             features = pfn(features, num_points)
 
-        return features.squeeze()
+        return features.squeeze(1)
 
 
 @VOXEL_ENCODERS.register_module()
@@ -592,4 +592,4 @@ class RadarPillarFeatureNet(nn.Module):
         for pfn in self.pfn_layers:
             features = pfn(features, num_points)
 
-        return features.squeeze()
+        return features.squeeze(1)
